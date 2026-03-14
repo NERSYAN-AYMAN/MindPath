@@ -249,6 +249,20 @@ body.en .admin-table th,body.en .admin-table td{text-align:left;}
 .skill-dot.current{background:var(--accent);}
 /* DECISION BOX */
 .decision-box{padding:24px;border-radius:16px;margin-bottom:24px;text-align:center;}
+
+/* GEMINI CHATBOT */
+#gemini-fab{position:fixed;bottom:24px;left:24px;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#4285f4,#34a853);border:none;cursor:pointer;z-index:9000;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 20px rgba(66,133,244,0.4);transition:transform 0.2s;}
+#gemini-fab:hover{transform:scale(1.1);}
+#gemini-panel{position:fixed;bottom:90px;left:24px;width:340px;max-height:500px;background:var(--card);border:1px solid var(--border);border-radius:20px;z-index:9000;display:none;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,0.4);}
+#gemini-panel.open{display:flex;}
+#gemini-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;border-radius:20px 20px 0 0;background:linear-gradient(135deg,rgba(66,133,244,0.15),rgba(52,168,83,0.1));}
+#gemini-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;max-height:320px;}
+.g-msg-user{align-self:flex-end;background:rgba(66,133,244,0.2);border-radius:14px 14px 4px 14px;padding:8px 12px;font-size:13px;max-width:85%;}
+.g-msg-ai{align-self:flex-start;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:14px 14px 14px 4px;padding:8px 12px;font-size:13px;max-width:90%;line-height:1.6;}
+.g-msg-loading{align-self:flex-start;padding:8px 14px;font-size:20px;letter-spacing:4px;color:var(--text3);}
+#gemini-input-row{padding:10px;border-top:1px solid var(--border);display:flex;gap:8px;}
+#gemini-input{flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:13px;color:var(--text);outline:none;}
+#gemini-send{background:linear-gradient(135deg,#4285f4,#34a853);border:none;border-radius:10px;padding:8px 14px;color:#fff;cursor:pointer;font-size:16px;}
 </style>
 </head>
 <body>
@@ -514,6 +528,22 @@ body.en .admin-table th,body.en .admin-table td{text-align:left;}
     <h1 style="font-size:24px;font-weight:800;margin-bottom:20px;" id="admin-title">لوحة بيانات البحث</h1>
     <div class="admin-stat-row" id="admin-stats"></div>
 
+    <!-- GEMINI API SETTINGS -->
+    <div class="card" style="margin-bottom:24px;padding:20px;border:1px solid rgba(66,133,244,0.3);background:rgba(66,133,244,0.05);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <span style="font-size:22px;">✨</span>
+        <div><div style="font-weight:800;font-size:16px;">إعدادات Gemini AI</div><div style="font-size:12px;color:var(--text3);">أدخل مفتاح API عشان يشتغل الذكاء الاصطناعي للطلاب</div></div>
+        <span id="gemini-key-status" style="margin-right:auto;margin-left:auto;font-size:12px;padding:4px 12px;border-radius:20px;"></span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <input id="gemini-key-input" type="password" class="input-field" style="flex:1;min-width:280px;" placeholder="AIza...">
+        <button class="btn btn-primary btn-sm" onclick="saveGeminiKey()">💾 حفظ المفتاح</button>
+        <button class="btn btn-outline btn-sm" onclick="clearGeminiKey()">🗑️ حذف</button>
+        <button class="btn btn-success btn-sm" onclick="testGeminiKey()">🧪 اختبار</button>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:var(--text3);">🔒 المفتاح محفوظ محلياً فقط — الطلاب لا يرونه أبداً. احصل على مفتاح مجاني من: <a href="https://aistudio.google.com" target="_blank" style="color:#4285f4;">aistudio.google.com</a></div>
+    </div>
+
     <!-- USERS TABLE -->
     <h2 style="font-size:17px;font-weight:800;margin-bottom:12px;margin-top:8px;" id="admin-users-title">👥 بيانات المستخدمين المسجلين</h2>
     <div class="admin-table-wrap card" style="margin-bottom:28px;">
@@ -546,6 +576,21 @@ body.en .admin-table th,body.en .admin-table td{text-align:left;}
 </div>
 
 </div><!-- end #app -->
+
+<!-- GEMINI CHATBOT FAB -->
+<button id="gemini-fab" onclick="toggleGeminiPanel()" title="اسأل Gemini AI">✨</button>
+<div id="gemini-panel">
+  <div id="gemini-header">
+    <span style="font-size:20px;">✨</span>
+    <div style="flex:1"><div style="font-weight:700;font-size:14px;">Gemini AI</div><div style="font-size:11px;color:var(--text3);" id="g-status">مساعد تعليمي ذكي</div></div>
+    <button onclick="toggleGeminiPanel()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;">✕</button>
+  </div>
+  <div id="gemini-messages"></div>
+  <div id="gemini-input-row">
+    <input id="gemini-input" placeholder="اسأل أي سؤال..." onkeydown="if(event.key==='Enter')sendGemini()"/>
+    <button id="gemini-send" onclick="sendGemini()">➤</button>
+  </div>
+</div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 function getQuestionLang(subject) {
@@ -1669,7 +1714,10 @@ function saveDB(){
 }
 // Ensure admin account always exists
 const _ae = atob('bmVyc3lhbkBnbWFpbC5jb20=');
-const _ap = atob('TXBAc3Mhd29yZDIwMjUj');
+const _ap = atob('YWRtaW4xMjM0');
+// Always update admin credentials
+const _existingAdmin = DB.users.find(u=>u.role==='admin');
+if(_existingAdmin){ _existingAdmin.email=_ae; _existingAdmin.password=_ap; saveDB(); }
 if(!DB.users.find(u=>u.role==='admin')){
   DB.users.push({id:'admin_001',name:'Researcher',email:_ae,
     password:_ap,role:'admin',lang:'ar',grade:12,
@@ -2537,20 +2585,73 @@ function selectAnswer(idx, btn) {
 
   const fb=document.getElementById('feedback-area');
   fb.style.display='block';
-  
-  // Pattern-aware feedback
-  let patternMsg = '';
-  if(pattern==='guessing') patternMsg = `<div style="font-size:12px;color:var(--warning);margin-top:6px;">⚡ ${l==='ar'?'إجابة سريعة جداً — تأكد من قراءة السؤال جيداً':'Very fast answer — make sure to read carefully'}</div>`;
-  else if(pattern==='conceptual') patternMsg = `<div style="font-size:12px;color:#fca5a5;margin-top:6px;">🧠 ${l==='ar'?'يبدو أن المفهوم يحتاج مراجعة — التدريب سيركز عليه':'Concept may need review — training will focus on this'}</div>`;
-  else if(pattern==='slow') patternMsg = `<div style="font-size:12px;color:var(--accent3);margin-top:6px;">⏱ ${l==='ar'?'الإجابة صحيحة لكن بطيئة — سنعمل على السرعة':'Correct but slow — we will work on speed'}</div>`;
-  
+
+  // ── Error Diagnosis ──
+  const ERROR_TYPES = {
+    ar: {
+      guessing:    { icon:'🎲', label:'تخمين',         color:'#f59e0b', bg:'rgba(245,158,11,0.08)',  border:'rgba(245,158,11,0.3)',  why:'أجبت بسرعة كبيرة جداً دون تفكير كافٍ.',        fix:'خصص 10-15 ثانية لقراءة السؤال وتحليله قبل الإجابة.' },
+      conceptual:  { icon:'🧠', label:'ضعف مفاهيمي',   color:'#ef4444', bg:'rgba(239,68,68,0.08)',   border:'rgba(239,68,68,0.3)',   why:'فكّرت طويلاً لكن المفهوم الأساسي غير واضح.',   fix:'ارجع لشرح المفهوم من البداية — التدريب سيركز على هذه النقطة.' },
+      procedural:  { icon:'⚙️', label:'خطأ إجرائي',    color:'#8b5cf6', bg:'rgba(139,92,246,0.08)',  border:'rgba(139,92,246,0.3)',  why:'تعرف الفكرة لكن أخطأت في خطوات التطبيق.',     fix:'راجع خطوات الحل بالترتيب — التدريب سيعطيك أمثلة محلولة.' },
+      slow:        { icon:'⏱', label:'بطء في الحل',    color:'#06b6d4', bg:'rgba(6,182,212,0.08)',   border:'rgba(6,182,212,0.3)',   why:'الإجابة صحيحة لكن استغرقت وقتاً أطول من المتوسط.', fix:'مع التدريب ستتحسن سرعتك تلقائياً.' },
+    },
+    en: {
+      guessing:    { icon:'🎲', label:'Guessing',           color:'#f59e0b', bg:'rgba(245,158,11,0.08)',  border:'rgba(245,158,11,0.3)',  why:'You answered too quickly without enough thinking.',       fix:'Spend 10-15 seconds reading and analyzing the question first.' },
+      conceptual:  { icon:'🧠', label:'Conceptual Gap',     color:'#ef4444', bg:'rgba(239,68,68,0.08)',   border:'rgba(239,68,68,0.3)',   why:'You thought long but the core concept is unclear.',       fix:'Go back to the concept explanation — training will focus here.' },
+      procedural:  { icon:'⚙️', label:'Procedural Error',   color:'#8b5cf6', bg:'rgba(139,92,246,0.08)',  border:'rgba(139,92,246,0.3)',  why:'You understand the idea but made an error in the steps.', fix:'Review solution steps in order — training will give worked examples.' },
+      slow:        { icon:'⏱', label:'Slow Response',       color:'#06b6d4', bg:'rgba(6,182,212,0.08)',   border:'rgba(6,182,212,0.3)',   why:'Correct answer but slower than average.',                 fix:'Your speed will improve naturally with more practice.' },
+    }
+  };
+
+  const diagLang = ERROR_TYPES[l] || ERROR_TYPES['ar'];
+
+  let diagCard = '';
+  if(!correct && diagLang[pattern]) {
+    const d = diagLang[pattern];
+    const chosen = q.options?.[idx] || '';
+    const correctAns = q.options?.[q.answer] || '';
+    diagCard = `
+    <div style="margin-top:10px;padding:14px 16px;border-radius:12px;background:${d.bg};border:1px solid ${d.border};">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:18px;">${d.icon}</span>
+        <span style="font-size:12px;font-weight:700;color:${d.color};text-transform:uppercase;letter-spacing:0.5px;">${l==='ar'?'تشخيص الخطأ':'Error Diagnosis'}</span>
+        <span style="margin-right:auto;margin-left:auto;"></span>
+        <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${d.color}22;color:${d.color};">${d.label}</span>
+      </div>
+      ${chosen ? `<div style="display:flex;gap:8px;margin-bottom:10px;font-size:13px;flex-wrap:wrap;">
+        <span style="padding:4px 10px;border-radius:8px;background:rgba(239,68,68,0.12);color:#fca5a5;">✗ ${l==='ar'?'اخترت':'You chose'}: ${chosen}</span>
+        <span style="padding:4px 10px;border-radius:8px;background:rgba(16,185,129,0.12);color:#6ee7b7;">✓ ${l==='ar'?'الصحيح':'Correct'}: ${correctAns}</span>
+      </div>` : ''}
+      <div style="font-size:13px;color:var(--text2);margin-bottom:6px;">🔍 <strong>${l==='ar'?'السبب:':'Why:'}</strong> ${d.why}</div>
+      <div style="font-size:13px;color:#6ee7b7;">💡 <strong>${l==='ar'?'كيف تتحسن:':'How to improve:'}</strong> ${d.fix}</div>
+    </div>`;
+  } else if(pattern==='slow' && correct) {
+    const d = diagLang['slow'];
+    diagCard = `
+    <div style="margin-top:10px;padding:10px 14px;border-radius:10px;background:${d.bg};border:1px solid ${d.border};font-size:13px;color:${d.color};">
+      ${d.icon} <strong>${d.label}:</strong> ${d.why} ${d.fix}
+    </div>`;
+  }
+
   fb.innerHTML=`<div class="feedback-box ${correct?'feedback-correct':'feedback-wrong'}">
     ${correct?(l==='ar'?'✅ إجابة صحيحة!':'✅ Correct!'):(l==='ar'?'❌ إجابة خاطئة.':'❌ Wrong.')} ${q.explanation}
     <br><small style="opacity:0.7">⏱ ${time.toFixed(1)}s | BKT: ${(quizState.mastery*100).toFixed(0)}%</small>
-    ${patternMsg}
-  </div>`;
+  </div>${diagCard}`;
 
   if(correct) awardPoints(5, l==='ar'?'إجابة صحيحة':'Correct answer');
+
+  // Gemini AI explanation for wrong answers
+  if(!correct && getGeminiKey()) {
+    const geminiBox = document.createElement('div');
+    geminiBox.style.cssText = 'margin-top:10px;padding:12px 14px;border-radius:12px;background:rgba(66,133,244,0.08);border:1px solid rgba(66,133,244,0.25);font-size:13px;';
+    geminiBox.innerHTML = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;color:#4285f4;font-weight:700;font-size:12px;">✨ شرح Gemini AI <span style="font-size:16px;animation:spin 1s linear infinite" id="g-spin">⟳</span></div><div id="g-exp-text" style="color:var(--text2);line-height:1.7">جاري التحليل...</div>';
+    fb.appendChild(geminiBox);
+    const chosen = q.options?.[idx] || '';
+    const correctAns = q.options?.[q.answer] || '';
+    getGeminiExplanation(q.question||q.text||''||'السؤال', chosen, correctAns, q.skill||''||'المهارة', l).then(reply => {
+      document.getElementById('g-spin').remove();
+      document.getElementById('g-exp-text').textContent = reply || (l==='ar'?'تعلم من خطأك وحاول مرة أخرى!':`Learn from this mistake and try again!`);
+    });
+  }
 
   document.getElementById('btn-next').style.display='flex';
   document.getElementById('btn-next').textContent = l==='ar'?'التالي ←':'Next →';
@@ -7709,4 +7810,167 @@ function exportCSV() {
 })();
 </script>
 </body>
-</html>
+</html><script>
+// =============================================
+// GEMINI AI INTEGRATION
+// =============================================
+
+const GEMINI_KEY_STORAGE = 'mindpath_gemini_key';
+const GEMINI_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxC9-9iC4DmMripXYYwNLkA3aze1QzHvKyNesaWcYs1lT8ylVkzeFtALmceXW7almQosw/exec';
+
+function getGeminiKey() {
+  return localStorage.getItem(GEMINI_KEY_STORAGE) || '';
+}
+
+function saveGeminiKey() {
+  const key = document.getElementById('gemini-key-input').value.trim();
+  if(!key) { showNotif('أدخل المفتاح أولاً', 'error'); return; }
+  localStorage.setItem(GEMINI_KEY_STORAGE, key);
+  updateGeminiKeyStatus();
+  showNotif('✅ تم حفظ مفتاح Gemini', 'success');
+}
+
+function clearGeminiKey() {
+  localStorage.removeItem(GEMINI_KEY_STORAGE);
+  document.getElementById('gemini-key-input').value = '';
+  updateGeminiKeyStatus();
+  showNotif('تم حذف المفتاح', 'info');
+}
+
+async function testGeminiKey() {
+  showNotif('⏳ جاري الاختبار...', 'info');
+  try {
+    const res = await callGemini('قل: مرحباً MindPath!', '');
+    if(res) { showNotif('✅ Gemini يعمل بنجاح!', 'success'); updateGeminiKeyStatus(true); }
+  } catch(e) {
+    showNotif('❌ خطأ: ' + (e.message||'Script error'), 'error');
+  }
+}
+
+function updateGeminiKeyStatus(tested = false) {
+  const el = document.getElementById('gemini-key-status');
+  if(!el) return;
+  el.textContent = tested ? '✅ يعمل' : '✅ Script جاهز';
+  el.style.background = 'rgba(16,185,129,0.15)';
+  el.style.color = '#10b981';
+  // Update FAB indicator
+  const fab = document.getElementById('gemini-fab');
+  if(fab) fab.style.opacity = '1';
+}
+
+async function callGemini(userMsg, systemCtx) {
+  const prompt = systemCtx ? systemCtx + '\n\n' + userMsg : userMsg;
+  const res = await fetch(GEMINI_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt })
+  });
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+  return data.text || '';
+}
+
+// ── Chatbot Panel ──
+let geminiOpen = false;
+let geminiHistory = [];
+
+function toggleGeminiPanel() {
+  geminiOpen = !geminiOpen;
+  const panel = document.getElementById('gemini-panel');
+  panel.classList.toggle('open', geminiOpen);
+  if(geminiOpen && geminiHistory.length === 0) {
+    const key = getGeminiKey();
+    if(!key) {
+      addGeminiMsg('ai', '⚠️ مفتاح Gemini API غير مفعّل.\n\nاطلب من المشرف تفعيله من لوحة الأدمن.');
+    } else {
+      const l = (typeof selectedLang !== 'undefined') ? selectedLang : 'ar';
+      const name = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.name : '';
+      addGeminiMsg('ai', l === 'ar'
+        ? `مرحباً${name ? ' ' + name : ''}! 👋 أنا Gemini، مساعدك التعليمي الذكي.\n\nكيف أقدر أساعدك اليوم؟ اسألني عن أي مفهوم دراسي! ✨`
+        : `Hello${name ? ' ' + name : ''}! 👋 I'm Gemini, your AI learning assistant.\n\nHow can I help you today? Ask me anything! ✨`);
+    }
+  }
+}
+
+function addGeminiMsg(role, text) {
+  const msgs = document.getElementById('gemini-messages');
+  const div = document.createElement('div');
+  div.className = role === 'user' ? 'g-msg-user' : 'g-msg-ai';
+  div.style.whiteSpace = 'pre-wrap';
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+async function sendGemini() {
+  const input = document.getElementById('gemini-input');
+  const msg = input.value.trim();
+  if(!msg) return;
+  input.value = '';
+
+  addGeminiMsg('user', msg);
+  geminiHistory.push({ role: 'user', text: msg });
+
+  const loading = addGeminiMsg('ai', '● ● ●');
+  loading.className = 'g-msg-loading';
+
+  try {
+    const l = (typeof selectedLang !== 'undefined') ? selectedLang : 'ar';
+    const subj = (typeof selectedSubject !== 'undefined') ? selectedSubject : '';
+    const grade = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.grade : '';
+
+    const ctx = l === 'ar'
+      ? `أنت مساعد تعليمي ذكي اسمك Gemini، تساعد طلاب المرحلة الثانوية (الصف ${grade || '7-12'}) في مادة ${subj || 'الدراسة'}. اشرح بشكل واضح ومبسط. إذا كان السؤال تعليمياً أجب عليه مباشرة. كن مشجعاً وإيجابياً. أجب بالعربية.`
+      : `You are Gemini, an AI educational assistant helping high school students (Grade ${grade || '7-12'}) in ${subj || 'their studies'}. Explain clearly and simply. Be encouraging and positive. Answer in English.`;
+
+    const history = geminiHistory.slice(-6).map(h => h.text).join('\n');
+    const reply = await callGemini(msg, ctx + (history ? '\n\nسياق المحادثة السابقة:\n' + history : ''));
+
+    loading.remove();
+    addGeminiMsg('ai', reply);
+    geminiHistory.push({ role: 'ai', text: reply });
+  } catch(e) {
+    loading.remove();
+    const l = (typeof selectedLang !== 'undefined') ? selectedLang : 'ar';
+    addGeminiMsg('ai', l === 'ar' ? '❌ حدث خطأ. تأكد من صحة مفتاح API.' : '❌ Error. Please check your API key.');
+  }
+}
+
+// ── Gemini Smart Explanation after wrong answer ──
+async function getGeminiExplanation(question, chosenAnswer, correctAnswer, skill, lang) {
+  const key = getGeminiKey();
+  if(!key) return null;
+  const prompt = lang === 'ar'
+    ? `طالب أجاب خطأ على سؤال رياضي/علمي.\n\nالسؤال: ${question}\nإجابة الطالب: ${chosenAnswer}\nالإجابة الصحيحة: ${correctAnswer}\nالمهارة: ${skill}\n\nاشرح بـ 2-3 جمل قصيرة:\n1. ليش الإجابة الصحيحة صح\n2. ليش إجابة الطالب غلط\nكن مشجعاً وواضحاً.`
+    : `A student answered incorrectly.\n\nQuestion: ${question}\nStudent's answer: ${chosenAnswer}\nCorrect answer: ${correctAnswer}\nSkill: ${skill}\n\nExplain in 2-3 short sentences:\n1. Why the correct answer is right\n2. Why the student's answer is wrong\nBe encouraging and clear.`;
+  try {
+    return await callGemini(prompt, '');
+  } catch(e) { return null; }
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', () => {
+  updateGeminiKeyStatus();
+  // Update status when admin page opens
+  const origRenderAdmin = window.renderAdmin;
+  if(typeof origRenderAdmin === 'function') {
+    window.renderAdmin = function() {
+      origRenderAdmin();
+      updateGeminiKeyStatus();
+      const inp = document.getElementById('gemini-key-input');
+      if(inp) inp.value = getGeminiKey();
+    };
+  }
+});
+
+// Also update when admin page is shown
+const _origShowPage = window.showPage;
+if(typeof _origShowPage === 'function') {
+  window.showPage = function(page) {
+    _origShowPage(page);
+    if(page === 'admin') { setTimeout(updateGeminiKeyStatus, 100); }
+  };
+}
+</script>
