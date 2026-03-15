@@ -2640,7 +2640,7 @@ function selectAnswer(idx, btn) {
   if(correct) awardPoints(5, l==='ar'?'إجابة صحيحة':'Correct answer');
 
   // Gemini AI explanation for wrong answers
-  if(!correct && getGeminiKey()) {
+  if(!correct) {
     const geminiBox = document.createElement('div');
     geminiBox.style.cssText = 'margin-top:10px;padding:12px 14px;border-radius:12px;background:rgba(66,133,244,0.08);border:1px solid rgba(66,133,244,0.25);font-size:13px;';
     geminiBox.innerHTML = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;color:#4285f4;font-weight:700;font-size:12px;">✨ شرح Gemini AI <span style="font-size:16px;animation:spin 1s linear infinite" id="g-spin">⟳</span></div><div id="g-exp-text" style="color:var(--text2);line-height:1.7">جاري التحليل...</div>';
@@ -7880,10 +7880,7 @@ function toggleGeminiPanel() {
   const panel = document.getElementById('gemini-panel');
   panel.classList.toggle('open', geminiOpen);
   if(geminiOpen && geminiHistory.length === 0) {
-    const key = getGeminiKey();
-    if(!key) {
-      addGeminiMsg('ai', '⚠️ مفتاح Gemini API غير مفعّل.\n\nاطلب من المشرف تفعيله من لوحة الأدمن.');
-    } else {
+    if(true) {
       const l = (typeof selectedLang !== 'undefined') ? selectedLang : 'ar';
       const name = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.name : '';
       addGeminiMsg('ai', l === 'ar'
@@ -7940,8 +7937,7 @@ async function sendGemini() {
 
 // ── Gemini Smart Explanation after wrong answer ──
 async function getGeminiExplanation(question, chosenAnswer, correctAnswer, skill, lang) {
-  const key = getGeminiKey();
-  if(!key) return null;
+  
   const prompt = lang === 'ar'
     ? `طالب أجاب خطأ على سؤال رياضي/علمي.\n\nالسؤال: ${question}\nإجابة الطالب: ${chosenAnswer}\nالإجابة الصحيحة: ${correctAnswer}\nالمهارة: ${skill}\n\nاشرح بـ 2-3 جمل قصيرة:\n1. ليش الإجابة الصحيحة صح\n2. ليش إجابة الطالب غلط\nكن مشجعاً وواضحاً.`
     : `A student answered incorrectly.\n\nQuestion: ${question}\nStudent's answer: ${chosenAnswer}\nCorrect answer: ${correctAnswer}\nSkill: ${skill}\n\nExplain in 2-3 short sentences:\n1. Why the correct answer is right\n2. Why the student's answer is wrong\nBe encouraging and clear.`;
