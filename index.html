@@ -252,6 +252,10 @@ body.en .admin-table th,body.en .admin-table td{text-align:left;}
 
 
 </style>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 </head>
 <body>
 <div class="bg-grid"></div>
@@ -1660,6 +1664,92 @@ const TRAINING_CONTENT = {
 
 
 // =============================================
+// FIREBASE INTEGRATION
+// =============================================
+// 🔧 ضع هنا بيانات مشروعك من Firebase Console
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAO5T3D7RUb-_klcohh1nPiPEsMpWwo4dU",
+  authDomain: "mindpath-25d8f.firebaseapp.com",
+  databaseURL: "https://mindpath-25d8f-default-rtdb.firebaseio.com",
+  projectId: "mindpath-25d8f",
+  storageBucket: "mindpath-25d8f.firebasestorage.app",
+  messagingSenderId: "497317125375",
+  appId: "1:497317125375:web:720bee9ae44eee5f47c0ca",
+  measurementId: "G-P5JQP0PJYJ"
+};
+
+let firebaseDB = null;
+let firebaseAuth = null;
+
+(function initFirebase() {
+  try {
+    if (typeof firebase === 'undefined') { console.warn('⚠️ Firebase SDK not loaded'); return; }
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    firebaseDB = firebase.database();
+    firebaseAuth = firebase.auth();
+    console.log('✅ Firebase connected');
+  } catch(e) { console.warn('⚠️ Firebase init failed:', e.message); }
+})();
+
+// Firebase Auth: Register
+async function fbRegister(email, password) {
+  if (!firebaseAuth) return null;
+  try {
+    const cred = await firebaseAuth.createUserWithEmailAndPassword(email, password);
+    return cred.user.uid;
+  } catch(e) {
+    console.warn('fbRegister error:', e.message);
+    return null;
+  }
+}
+
+// Firebase Auth: Login
+async function fbLogin(email, password) {
+  if (!firebaseAuth) return null;
+  try {
+    const cred = await firebaseAuth.signInWithEmailAndPassword(email, password);
+    return cred.user.uid;
+  } catch(e) {
+    console.warn('fbLogin error:', e.message);
+    return null;
+  }
+}
+
+// Firebase Auth: Load user data after login
+async function fbLoadUser(uid) {
+  if (!firebaseDB) return null;
+  try {
+    const snap = await firebaseDB.ref('students/' + uid).get();
+    return snap.exists() ? snap.val() : null;
+  } catch(e) { return null; }
+}
+
+async function fbSaveUser(user) {
+  if (!firebaseDB) return;
+  try {
+    const safeUser = { ...user };
+    delete safeUser.password;
+    await firebaseDB.ref('students/' + user.id).set(safeUser);
+  } catch(e) { console.warn('fbSaveUser error:', e.message); }
+}
+
+async function fbSaveResult(result) {
+  if (!firebaseDB) return;
+  try {
+    await firebaseDB.ref('results/' + result.id).set(result);
+  } catch(e) { console.warn('fbSaveResult error:', e.message); }
+}
+
+async function fbUpdateUser(user) {
+  if (!firebaseDB) return;
+  try {
+    const safeUser = { ...user };
+    delete safeUser.password;
+    await firebaseDB.ref('students/' + user.id).update(safeUser);
+  } catch(e) { console.warn('fbUpdateUser error:', e.message); }
+}
+
+// =============================================
 // DATA STORE — Persistent with account support
 // =============================================
 let DB = {
@@ -2219,6 +2309,8 @@ function doLogin() {
   DB.users = DB.users.map(usr => usr.id===CU.id ? CU : usr);
   localStorage.setItem('mp4_current', JSON.stringify(CU));
   saveDB();
+  // Firebase Auth sync
+  fbLogin(email, pass).then(uid => { if(uid && CU) fbUpdateUser(CU); });
   showNotif(selectedLang==='ar'?`مرحباً ${CU.name}!`:`Welcome back ${CU.name}!`,'success');
   
   if(!CU.badges) CU.badges = [];
@@ -2253,6 +2345,10 @@ function doRegister() {
   CU = u;
   localStorage.setItem('mp4_current', JSON.stringify(CU));
   showNotif(l==='ar'?'✅ تم إنشاء الحساب! +10 نقاط':'✅ Account created! +10 points','success');
+  // Firebase Auth + save
+  fbRegister(email, pass).then(uid => {
+    if(uid) { u.uid = uid; fbSaveUser(u); }
+  });
   showPage('dashboard');
 }
 
@@ -2650,6 +2746,7 @@ function finishQuiz() {
       trainingWeakSkills:trainState.weakSkills||[]
     };
     DB.results.push(result);
+    fbSaveResult(result); // ✅ Firebase: حفظ نتيجة الطالب
     CU.currentPhase='results';
     CU.skills[selectedSubject]={mastery:quizState.mastery,lastDate:new Date().toISOString()};
     saveCU(); saveDB();
@@ -2672,6 +2769,7 @@ function saveCU() {
   DB.users = DB.users.map(u=>u.id===CU.id?CU:u);
   localStorage.setItem('mp4_current', JSON.stringify(CU));
   saveDB();
+  if(CU && CU.role !== 'admin') fbUpdateUser(CU); // ✅ Firebase: تحديث بيانات الطالب
 }
 
 // =============================================
@@ -7754,163 +7852,4 @@ function exportCSV() {
 })();
 </script>
 </body>
-</html><script>
-// =============================================
-// GEMINI AI INTEGRATION
-// =============================================
-
-const GEMINI_KEY_STORAGE = 'mindpath_gemini_key';
-const GEMINI_SCRIPT_URL = 'https://jolly-boat-7d8c.aymannery.workers.dev';
-
-function getGeminiKey() {
-  return localStorage.getItem(GEMINI_KEY_STORAGE) || '';
-}
-
-function saveGeminiKey() {
-  const key = document.getElementById('gemini-key-input').value.trim();
-  if(!key) { showNotif('أدخل المفتاح أولاً', 'error'); return; }
-  localStorage.setItem(GEMINI_KEY_STORAGE, key);
-  updateGeminiKeyStatus();
-  showNotif('✅ تم حفظ مفتاح Gemini', 'success');
-}
-
-function clearGeminiKey() {
-  localStorage.removeItem(GEMINI_KEY_STORAGE);
-  document.getElementById('gemini-key-input').value = '';
-  updateGeminiKeyStatus();
-  showNotif('تم حذف المفتاح', 'info');
-}
-
-async function testGeminiKey() {
-  showNotif('⏳ جاري الاختبار...', 'info');
-  try {
-    const res = await callGemini('قل: مرحباً MindPath!', '');
-    if(res) { showNotif('✅ Gemini يعمل بنجاح!', 'success'); updateGeminiKeyStatus(true); }
-  } catch(e) {
-    showNotif('❌ خطأ: ' + (e.message||'Script error'), 'error');
-  }
-}
-
-function updateGeminiKeyStatus(tested = false) {
-  const el = document.getElementById('gemini-key-status');
-  if(!el) return;
-  el.textContent = tested ? '✅ يعمل' : '✅ Script جاهز';
-  el.style.background = 'rgba(16,185,129,0.15)';
-  el.style.color = '#10b981';
-  // Update FAB indicator
-  const fab = document.getElementById('gemini-fab');
-  if(fab) fab.style.opacity = '1';
-}
-
-async function callGemini(userMsg, systemCtx) {
-  const prompt = systemCtx ? systemCtx + '\n\n' + userMsg : userMsg;
-  const res = await fetch(GEMINI_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt })
-  });
-  if(!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  if(data.error) throw new Error(data.error);
-  return data.text || '';
-}
-
-// ── Chatbot Panel ──
-let geminiOpen = false;
-let geminiHistory = [];
-
-function toggleGeminiPanel() {
-  geminiOpen = !geminiOpen;
-  const panel = document.getElementById('gemini-panel');
-  panel.classList.toggle('open', geminiOpen);
-  if(geminiOpen && geminiHistory.length === 0) {
-    if(true) {
-      const l = (typeof selectedLang !== 'undefined') ? selectedLang : 'ar';
-      const name = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.name : '';
-      addGeminiMsg('ai', l === 'ar'
-        ? `مرحباً${name ? ' ' + name : ''}! 👋 أنا Gemini، مساعدك التعليمي الذكي.\n\nكيف أقدر أساعدك اليوم؟ اسألني عن أي مفهوم دراسي! ✨`
-        : `Hello${name ? ' ' + name : ''}! 👋 I'm Gemini, your AI learning assistant.\n\nHow can I help you today? Ask me anything! ✨`);
-    }
-  }
-}
-
-function addGeminiMsg(role, text) {
-  const msgs = document.getElementById('gemini-messages');
-  const div = document.createElement('div');
-  div.className = role === 'user' ? 'g-msg-user' : 'g-msg-ai';
-  div.style.whiteSpace = 'pre-wrap';
-  div.textContent = text;
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return div;
-}
-
-async function sendGemini() {
-  const input = document.getElementById('gemini-input');
-  const msg = input.value.trim();
-  if(!msg) return;
-  input.value = '';
-
-  addGeminiMsg('user', msg);
-  geminiHistory.push({ role: 'user', text: msg });
-
-  const loading = addGeminiMsg('ai', '● ● ●');
-  loading.className = 'g-msg-loading';
-
-  try {
-    const l = (typeof selectedLang !== 'undefined') ? selectedLang : 'ar';
-    const subj = (typeof selectedSubject !== 'undefined') ? selectedSubject : '';
-    const grade = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.grade : '';
-
-    const ctx = l === 'ar'
-      ? `أنت مساعد تعليمي ذكي اسمك Gemini، تساعد طلاب المرحلة الثانوية (الصف ${grade || '7-12'}) في مادة ${subj || 'الدراسة'}. اشرح بشكل واضح ومبسط. إذا كان السؤال تعليمياً أجب عليه مباشرة. كن مشجعاً وإيجابياً. أجب بالعربية.`
-      : `You are Gemini, an AI educational assistant helping high school students (Grade ${grade || '7-12'}) in ${subj || 'their studies'}. Explain clearly and simply. Be encouraging and positive. Answer in English.`;
-
-    const history = geminiHistory.slice(-6).map(h => h.text).join('\n');
-    const reply = await callGemini(msg, ctx + (history ? '\n\nسياق المحادثة السابقة:\n' + history : ''));
-
-    loading.remove();
-    addGeminiMsg('ai', reply);
-    geminiHistory.push({ role: 'ai', text: reply });
-  } catch(e) {
-    loading.remove();
-    const l = (typeof selectedLang !== 'undefined') ? selectedLang : 'ar';
-    addGeminiMsg('ai', l === 'ar' ? '❌ حدث خطأ. تأكد من صحة مفتاح API.' : '❌ Error. Please check your API key.');
-  }
-}
-
-// ── Gemini Smart Explanation after wrong answer ──
-async function getGeminiExplanation(question, chosenAnswer, correctAnswer, skill, lang) {
-  
-  const prompt = lang === 'ar'
-    ? `طالب أجاب خطأ على سؤال رياضي/علمي.\n\nالسؤال: ${question}\nإجابة الطالب: ${chosenAnswer}\nالإجابة الصحيحة: ${correctAnswer}\nالمهارة: ${skill}\n\nاشرح بـ 2-3 جمل قصيرة:\n1. ليش الإجابة الصحيحة صح\n2. ليش إجابة الطالب غلط\nكن مشجعاً وواضحاً.`
-    : `A student answered incorrectly.\n\nQuestion: ${question}\nStudent's answer: ${chosenAnswer}\nCorrect answer: ${correctAnswer}\nSkill: ${skill}\n\nExplain in 2-3 short sentences:\n1. Why the correct answer is right\n2. Why the student's answer is wrong\nBe encouraging and clear.`;
-  try {
-    return await callGemini(prompt, '');
-  } catch(e) { return null; }
-}
-
-// Initialize on load
-document.addEventListener('DOMContentLoaded', () => {
-  updateGeminiKeyStatus();
-  // Update status when admin page opens
-  const origRenderAdmin = window.renderAdmin;
-  if(typeof origRenderAdmin === 'function') {
-    window.renderAdmin = function() {
-      origRenderAdmin();
-      updateGeminiKeyStatus();
-      const inp = document.getElementById('gemini-key-input');
-      if(inp) inp.value = getGeminiKey();
-    };
-  }
-});
-
-// Also update when admin page is shown
-const _origShowPage = window.showPage;
-if(typeof _origShowPage === 'function') {
-  window.showPage = function(page) {
-    _origShowPage(page);
-    if(page === 'admin') { setTimeout(updateGeminiKeyStatus, 100); }
-  };
-}
-</script>
+</html>
