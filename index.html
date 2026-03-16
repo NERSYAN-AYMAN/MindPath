@@ -3629,6 +3629,12 @@ function sqAns(btn,idx,ans,exp,skillKey){
       ? (selectedLang==='ar'?'✅ ممتاز! أحسنت':'✅ Excellent! Well done')
       : (selectedLang==='ar'?'❌ إجابة خاطئة — ':'❌ Wrong — '))+(exp||'');
     if(correct && typeof awardPoints==='function') awardPoints(5,'Simulation quiz');
+    // Show AI question button
+    if(typeof addAIQuestionButton === 'function') {
+      const item = (typeof trainState!=='undefined'&&trainState?.plan) ? trainState.plan[trainState.current] : null;
+      const sk = item?.skill || skillKey || '';
+      addAIQuestionButton(sk, exp||'', correct ? 'harder' : 'easier');
+    }
   }
 
   // Update mastery & show Next
@@ -7838,6 +7844,138 @@ function exportCSV() {
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download='mindpath_v3_data.csv';a.click();URL.revokeObjectURL(url);
+}
+
+
+// =============================================
+// GEMINI ADAPTIVE AI TRAINING
+// =============================================
+const GEMINI_API_KEY = 'AIzaSyD2RmBdE0lxlysmFOSzuI1uf-I_dqXIdO8';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY;
+
+async function callGeminiAI(prompt) {
+  try {
+    const res = await fetch(GEMINI_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 500 }
+      })
+    });
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  } catch(e) { return null; }
+}
+
+async function generateAIQuestion(skill, subject, difficulty, lang, lastAnswer) {
+  const l = lang || selectedLang;
+  const ar = l === 'ar';
+  const subjName = SUBJ_NAMES[l][subject] || subject;
+  const diffLabel = difficulty === 'easier' ? (ar ? 'أسهل من السابق' : 'easier than before') : (ar ? 'أصعب قليلاً' : 'slightly harder');
+
+  const prompt = ar
+    ? `أنت مدرس ${subjName}. الطالب يتدرب على مهارة: "${skill}".
+${lastAnswer ? `آخر إجابة للطالب كانت: ${lastAnswer}` : ''}
+اكتب سؤالاً اختيارياً ${diffLabel} بالعربية.
+
+أجب بـ JSON فقط بهذا الشكل بدون أي نص إضافي:
+{"question": "نص السؤال", "options": ["خيار أ", "خيار ب", "خيار ج", "خيار د"], "correct": 0, "explanation": "شرح الإجابة الصحيحة"}`
+    : `You are a ${subjName} teacher. The student is practicing: "${skill}".
+${lastAnswer ? `Student's last answer: ${lastAnswer}` : ''}
+Write a multiple choice question that is ${diffLabel} in English.
+
+Respond with JSON only, no extra text:
+{"question": "question text", "options": ["option A", "option B", "option C", "option D"], "correct": 0, "explanation": "explanation of correct answer"}`;
+
+  const response = await callGeminiAI(prompt);
+  if (!response) return null;
+
+  try {
+    const clean = response.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } catch(e) { return null; }
+}
+
+async function showAIQuestion(skill, difficulty, lastAnswer) {
+  const l = selectedLang, ar = l === 'ar';
+  const cont = document.getElementById('train-content');
+  if (!cont) return;
+
+  // Show loading
+  const loadId = 'ai-q-' + Date.now();
+  cont.insertAdjacentHTML('beforeend', `
+    <div id="${loadId}" class="card" style="padding:24px;margin-top:16px;border:1px solid rgba(6,182,212,0.3);background:rgba(6,182,212,0.05);">
+      <div style="display:flex;align-items:center;gap:10px;color:var(--accent);">
+        <span style="animation:spin 1s linear infinite;display:inline-block;">⟳</span>
+        <span style="font-size:14px;font-weight:600;">${ar ? '🤖 Gemini يولّد سؤالاً مخصصاً لك...' : '🤖 Gemini is generating a personalized question...'}</span>
+      </div>
+    </div>`);
+
+  const aiQ = await generateAIQuestion(skill, selectedSubject, difficulty, l, lastAnswer);
+  const loadEl = document.getElementById(loadId);
+  if (!loadEl) return;
+
+  if (!aiQ) {
+    loadEl.innerHTML = `<p style="color:var(--text3);font-size:13px;">${ar ? '❌ تعذر توليد سؤال. جرب مرة أخرى.' : '❌ Could not generate question. Try again.'}</p>`;
+    return;
+  }
+
+  const qid = 'aiq_' + Date.now();
+  const letters = ar ? ['أ','ب','ج','د'] : ['A','B','C','D'];
+  const optsHtml = aiQ.options.map((opt, i) => `
+    <button onclick="checkAIAnswer(this, ${i}, ${aiQ.correct}, '${qid}', '${(aiQ.explanation||'').replace(/'/g,"\'")}', ${ar})"
+      style="padding:12px 16px;border-radius:10px;border:1.5px solid var(--border);background:rgba(255,255,255,0.03);cursor:pointer;text-align:${ar?'right':'left'};font-family:inherit;font-size:14px;color:var(--text);transition:all 0.25s;display:flex;align-items:center;gap:10px;width:100%;">
+      <span style="width:28px;height:28px;border-radius:7px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">${letters[i]}</span>
+      <span>${opt}</span>
+    </button>`).join('');
+
+  loadEl.innerHTML = `
+    <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+      <span style="background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;">🤖 AI</span>
+      <span style="font-size:12px;color:var(--accent);font-weight:600;">${ar ? (difficulty==='easier'?'سؤال مخصص — أسهل':'سؤال مخصص — أصعب') : (difficulty==='easier'?'Custom — Easier':'Custom — Harder')}</span>
+    </div>
+    <div style="font-size:15px;color:var(--text);line-height:1.8;margin-bottom:16px;">${aiQ.question}</div>
+    <div style="display:flex;flex-direction:column;gap:10px;" id="${qid}-opts">${optsHtml}</div>
+    <div id="aifb-${qid}" style="display:none;margin-top:12px;padding:12px;border-radius:10px;font-size:13px;"></div>`;
+}
+
+function checkAIAnswer(btn, chosen, correct, qid, explanation, ar) {
+  const opts = document.querySelectorAll(`#${qid}-opts button`);
+  opts.forEach((b, i) => {
+    b.disabled = true;
+    if (i === correct) b.style.borderColor = '#10b981', b.style.background = 'rgba(16,185,129,0.12)', b.style.color = '#10b981';
+    else if (i === chosen && chosen !== correct) b.style.borderColor = '#ef4444', b.style.background = 'rgba(239,68,68,0.1)', b.style.color = '#ef4444';
+  });
+  const fb = document.getElementById('aifb-' + qid);
+  if (fb) {
+    fb.style.display = 'block';
+    const isCorrect = chosen === correct;
+    fb.style.background = isCorrect ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.08)';
+    fb.style.border = isCorrect ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(239,68,68,0.25)';
+    fb.style.color = isCorrect ? '#6ee7b7' : '#fca5a5';
+    fb.textContent = (isCorrect ? (ar ? '✅ إجابة صحيحة! ' : '✅ Correct! ') : (ar ? '❌ إجابة خاطئة. ' : '❌ Wrong. ')) + (explanation || '');
+    if (isCorrect) awardPoints(10, ar ? 'إجابة AI صحيحة' : 'AI question correct');
+  }
+}
+
+// Add AI button after wrong answer in training
+function addAIQuestionButton(skill, lastAnswer, difficulty) {
+  const l = selectedLang, ar = l === 'ar';
+  const actions = document.getElementById('train-actions');
+  if (!actions) return;
+  if (document.getElementById('btn-ai-question')) return; // avoid duplicates
+
+  const btn = document.createElement('button');
+  btn.id = 'btn-ai-question';
+  btn.className = 'btn btn-outline btn-sm';
+  btn.style.cssText = 'border-color:rgba(6,182,212,0.4);color:var(--accent);background:rgba(6,182,212,0.06);';
+  btn.innerHTML = `🤖 ${ar ? (difficulty==='easier'?'سؤال أسهل من AI':'سؤال أصعب من AI') : (difficulty==='easier'?'Easier AI Question':'Harder AI Question')}`;
+  btn.onclick = () => {
+    btn.remove();
+    showAIQuestion(skill, difficulty, lastAnswer);
+  };
+  actions.insertBefore(btn, actions.firstChild);
 }
 
 // =============================================
